@@ -3,160 +3,412 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RYTC 管理员控制台</title>
-    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', system-ui; background: #0a0f1e; color: #eef; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        h1 { margin-bottom: 20px; border-left: 4px solid #2a6df4; padding-left: 16px; }
-        .card { background: #141b2b; border-radius: 24px; padding: 20px; margin-bottom: 20px; border: 1px solid #2a3a5a; }
-        .card h2 { margin-bottom: 16px; color: #7aa9ff; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
-        button { background: #2a6df4; border: none; color: white; padding: 8px 16px; border-radius: 40px; cursor: pointer; margin-top: 8px; }
-        input, select { background: #0f1622; border: 1px solid #2a3a5a; color: #eef; padding: 8px 12px; border-radius: 40px; width: 100%; margin: 8px 0; }
-        .flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .status { background: #0f1622; border-radius: 20px; padding: 12px; font-family: monospace; margin-bottom: 16px; }
-        hr { margin: 12px 0; border-color: #2a3a5a; }
-        .warning-text { color: #ffaa66; font-size: 12px; margin-top: 4px; }
-        .balance-row { display: flex; justify-content: space-between; background: #0f1622; border-radius: 20px; padding: 8px 12px; margin: 8px 0; font-size: 14px; }
-        .refresh-btn { background: #2f4b8f; padding: 4px 12px; font-size: 12px; margin-left: 10px; }
+    <title>全球节点 | Raymond Chain</title>
+    <!-- 公共资源 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+
+    <!-- 主题配色 与主站保持一致 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0F172A',
+                        secondary: '#7E22CE',
+                        accent: '#10B981',
+                        dark: '#020617',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-gradient {
+                background-clip: text;
+                -webkit-background-clip: text;
+                color: transparent;
+            }
+            .bg-glass {
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+            }
+            .node-item-hover {
+                @apply hover:border-secondary hover:shadow-lg hover:shadow-secondary/20 transition-all duration-300;
+            }
+        }
+
+        /* 粒子背景 */
+        #particles-js {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
     </style>
 </head>
-<body>
-<div class="container">
-    <h1>🔐 RYTC 管理员控制台</h1>
-    <div class="card">
-        <button id="connectBtn">连接 MetaMask</button>
-        <div id="walletStatus" class="status"></div>
-        <div id="ownerCheck" style="color:#ffaa66;"></div>
-    </div>
-    <div id="adminPanel" style="display:none;">
-        <!-- 通用转账 -->
-        <div class="card"><h2>💰 代币转账</h2><div class="flex"><input type="text" id="transferTo" placeholder="接收地址" style="flex:2;"><input type="number" id="transferAmount" placeholder="数量 (RYTC)" step="any" style="flex:1;"><button id="doTransfer">转账</button></div></div>
-        <div class="grid">
-            <!-- IDO 管理 -->
-            <div class="card"><h2>📊 IDO 合约</h2><div>地址: <span id="idoAddr"></span></div><div class="balance-row"><span>💰 合约余额:</span><span id="idoBalance">-</span><button class="refresh-btn" data-type="ido">刷新</button></div><hr><div>开始时间戳: <input type="number" id="idoStart"></div><div>结束时间戳: <input type="number" id="idoEnd"></div><button id="setTimeBtn">修改时间</button><hr><div>比例 (1 USDT = ? RYTC): <input type="number" id="idoRate"></div><button id="setRateBtn">修改比例</button><hr><div>存入 RYTC: <input type="number" id="idoDepositAmount"></div><button id="idoDepositBtn">存入</button><hr><button id="idoWithdrawBtn">提取剩余</button></div>
-            <!-- 挖矿管理 -->
-            <div class="card"><h2>⛏️ 挖矿合约</h2><div>地址: <span id="miningAddr"></span></div><div class="balance-row"><span>💰 合约余额:</span><span id="miningBalance">-</span><button class="refresh-btn" data-type="mining">刷新</button></div><hr><div>矿机类型ID: <input type="number" id="minerTypeId" placeholder="0~6"></div><div>启用/禁用: <select id="minerEnabled"><option value="true">启用</option><option value="false">禁用</option></select></div><button id="updateMinerStatusBtn">修改状态</button><hr><div>每日领取上限: <input type="number" id="maxClaimTimes"></div><button id="setMaxClaimBtn">修改</button><hr><div>转入奖励池: <input type="number" id="miningFundAmount"></div><button id="fundMiningBtn">转入</button></div>
-            <!-- 团队管理（新增提现和余额显示） -->
-            <div class="card"><h2>👥 团队合约</h2><div>地址: <span id="teamAddr"></span></div><div class="balance-row"><span>💰 合约余额:</span><span id="teamBalance">-</span><button class="refresh-btn" data-type="team">刷新</button></div><hr><div>级别 (T1~T7): <select id="levelIndex"><option value="1">T1</option><option value="2">T2</option><option value="3">T3</option><option value="4">T4</option><option value="5">T5</option><option value="6">T6</option><option value="7">T7</option></select></div><div>奖励比例 (基点): <input type="number" id="newRate" placeholder="1000=10%"></div><button id="setLevelRateBtn">修改比例</button><hr><div>转入奖励池: <input type="number" id="teamFundAmount" placeholder="数量 (RYTC)"></div><button id="fundTeamBtn">转入</button><hr><div style="border-top: 1px solid #2a3a5a; margin: 12px 0;"></div><div><strong>💰 提取奖励池（仅管理员）</strong></div><div>提取到地址: <input type="text" id="withdrawTo" placeholder="接收地址 (0x...)"></div><div>提取数量 (RYTC): <input type="number" id="withdrawAmount" step="any" placeholder="数量"></div><button id="withdrawTeamBtn">提取</button><div class="warning-text">⚠️ 提取后无法撤销，请确保不超过合约余额</div></div>
-            <!-- 公会管理 -->
-            <div class="card"><h2>🏛️ 公会合约</h2><div>地址: <span id="guildAddr"></span></div><div class="balance-row"><span>💰 合约余额:</span><span id="guildBalance">-</span><button class="refresh-btn" data-type="guild">刷新</button></div><hr><div>公会 ID (1-200): <input type="number" id="guildId" placeholder="公会ID"></div>
-                <div>设置会长: <input type="text" id="newOwner" placeholder="新会长地址"></div><button id="changeGuildOwnerBtn">更换会长</button><hr>
-                <div>设置质押总额 (RYTC): <input type="number" id="guildStake" placeholder="质押额"></div><button id="setGuildStakeBtn">设置质押额</button><hr>
-                <div>开关公会: <select id="guildActive"><option value="true">激活</option><option value="false">关闭</option></select></div><button id="setGuildActiveBtn">修改状态</button><hr>
-                <div>分红比例 (基点, 100=1%): <input type="number" id="dividendRate" placeholder="当前值"></div><button id="setDividendRateBtn">修改比例</button><hr>
-                <div>转入分红池: <input type="number" id="guildFundAmount"></div><button id="fundGuildBtn">转入</button>
+<body class="font-inter bg-primary text-gray-200 overflow-x-hidden">
+    <!-- 粒子背景 -->
+    <div id="particles-js"></div>
+
+    <!-- 顶部导航 -->
+    <header class="fixed w-full top-0 z-50">
+        <div class="bg-dark/80 bg-glass border-b border-gray-800">
+            <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+                <!-- 左侧LOGO -->
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-r from-secondary to-accent flex items-center justify-center">
+                        <span class="text-white text-xl font-bold">R</span>
+                    </div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-gradient">
+                        Raymond Chain
+                    </h1>
+                </div>
+                <!-- 首页按钮 外部链接 自行修改href -->
+                <a href="/raymond-rayc/index.html" target="_blank" class="px-5 py-2 rounded-full border border-gray-600 hover:border-accent hover:text-accent transition-colors">
+                    <i class="fa fa-home mr-2"></i>返回首页
+                </a>
             </div>
         </div>
-    </div>
-</div>
-<script>
-    const CONFIG = {
-        token: "0xfab2Cc41282E20f98d1470802Ac51450EB8E9906", ido: "0x9FFE5621eECda749Dd0dD18Ea90D44C0d079E4C6",
-        mining: "0x737E07277CcFF609EC3Ff9FabE5AD2Ab509D97F5", team: "0x9D7f74d0C41E726EC95884E0e97Fa6129e3b5E99", // ← 部署新合约后替换
-        guild: "0x8EC9689CF57F83e5Eece439bD34F0f7010DA3a77", usdt: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
-    };
-    const MAX_UINT256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
-    const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)","function transfer(address,uint256) returns (bool)","function decimals() view returns (uint8)","function approve(address,uint256) returns (bool)"];
-    const IDO_ABI = ["function owner() view returns (address)","function setTime(uint256,uint256)","function setRate(uint256)","function depositTokens(uint256)","function withdrawRemainingTokens()"];
-    const MINING_ABI = ["function owner() view returns (address)","function updateMinerType(uint256,uint32,uint256,uint256,uint256,uint256,uint256,bool)","function setMaxDailyClaimTimes(uint256)","function minerTypes(uint256) view returns (uint32,uint256,uint256,uint256,uint256,uint256,uint256,bool)"];
-    const TEAM_ABI = ["function owner() view returns (address)","function setLevelRewardRate(uint256,uint256)","function depositRewardTokens(uint256)","function withdrawRewardTokens(address,uint256)"];
-    const GUILD_ABI = ["function owner() view returns (address)","function setGuildStake(uint256,uint256)","function changeGuildOwner(uint256,address)","function setGuildActive(uint256,bool)","function setDividendRate(uint256)","function depositRewardTokens(uint256)"];
+    </header>
 
-    let provider, signer, userAddress, tokenContract, idoContract, miningContract, teamContract, guildContract;
-    // 刷新合约余额的通用函数
-    async function refreshBalance(contractType) {
-        if (!tokenContract) return;
-        try {
-            const decimals = await tokenContract.decimals();
-            let balance = '0';
-            if (contractType === 'ido') balance = await tokenContract.balanceOf(CONFIG.ido);
-            else if (contractType === 'mining') balance = await tokenContract.balanceOf(CONFIG.mining);
-            else if (contractType === 'team') balance = await tokenContract.balanceOf(CONFIG.team);
-            else if (contractType === 'guild') balance = await tokenContract.balanceOf(CONFIG.guild);
-            const formatted = parseFloat(ethers.utils.formatUnits(balance, decimals)).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-            document.getElementById(`${contractType}Balance`).innerText = formatted;
-        } catch(e) { console.error(e); document.getElementById(`${contractType}Balance`).innerText = '错误'; }
-    }
-    async function refreshAllBalances() {
-        await refreshBalance('ido');
-        await refreshBalance('mining');
-        await refreshBalance('team');
-        await refreshBalance('guild');
-    }
+    <!-- 主体内容 全球节点 -->
+    <main class="relative z-10 pt-28 pb-20 min-h-screen">
+        <div class="container mx-auto px-4">
+            <!-- 页面标题 -->
+            <div class="text-center mb-16">
+                <h2 class="text-[clamp(2rem,4vw,3.5rem)] font-bold mb-4">
+                    <span class="bg-gradient-to-r from-blue-400 via-purple-500 to-accent text-gradient">全球分布式节点</span>
+                </h2>
+                <p class="text-gray-400 text-lg max-w-3xl mx-auto">
+                    Global Distributed Nodes Network | 全球多区域节点集群，保障网络高速、稳定、去中心化运行
+                </p>
+            </div>
 
-    document.getElementById('connectBtn').onclick = async ()=>{
-        if(!window.ethereum) return alert('安装MetaMask');
-        await window.ethereum.request({method:'eth_requestAccounts'});
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner(); userAddress = await signer.getAddress();
-        document.getElementById('walletStatus').innerHTML = `连接地址: ${userAddress}`;
-        tokenContract = new ethers.Contract(CONFIG.token, TOKEN_ABI, signer);
-        idoContract = new ethers.Contract(CONFIG.ido, IDO_ABI, signer);
-        miningContract = new ethers.Contract(CONFIG.mining, MINING_ABI, signer);
-        teamContract = new ethers.Contract(CONFIG.team, TEAM_ABI, signer);
-        guildContract = new ethers.Contract(CONFIG.guild, GUILD_ABI, signer);
-        let idoOwner = await idoContract.owner();
-        if(idoOwner.toLowerCase() === userAddress.toLowerCase()){
-            document.getElementById('ownerCheck').innerHTML = '✅ 管理员权限已解锁';
-            document.getElementById('adminPanel').style.display = 'block';
-            document.getElementById('idoAddr').innerText = CONFIG.ido;
-            document.getElementById('miningAddr').innerText = CONFIG.mining;
-            document.getElementById('teamAddr').innerText = CONFIG.team;
-            document.getElementById('guildAddr').innerText = CONFIG.guild;
-            await refreshAllBalances();
-        } else { document.getElementById('ownerCheck').innerHTML = '⛔ 你不是合约所有者'; }
-    };
-    // 绑定刷新按钮
-    document.querySelectorAll('.refresh-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const type = btn.getAttribute('data-type');
-            if (type) refreshBalance(type);
+            <!-- 节点列表 12个节点 全部可改链接 -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 节点 1 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-secondary/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-secondary"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">北美一号节点</h3>
+                                <p class="text-gray-400 text-sm">United States · Los Angeles</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 2 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-accent"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">北美二号节点</h3>
+                                <p class="text-gray-400 text-sm">Canada · Toronto</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 3 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-blue-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">欧洲核心节点</h3>
+                                <p class="text-gray-400 text-sm">Germany · Frankfurt</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 4 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-purple-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">欧洲备用节点</h3>
+                                <p class="text-gray-400 text-sm">UK · London</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 5 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-green-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">亚太主节点</h3>
+                                <p class="text-gray-400 text-sm">Singapore</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 6 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-yellow-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">东亚骨干节点</h3>
+                                <p class="text-gray-400 text-sm">Japan · Tokyo</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 7 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-pink-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-pink-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">东南亚节点</h3>
+                                <p class="text-gray-400 text-sm">Malaysia · Kuala Lumpur</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 8 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-indigo-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">澳洲区域节点</h3>
+                                <p class="text-gray-400 text-sm">Australia · Sydney</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 9 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-red-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">南美节点</h3>
+                                <p class="text-gray-400 text-sm">Brazil · São Paulo</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 10 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-cyan-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">中东枢纽节点</h3>
+                                <p class="text-gray-400 text-sm">UAE · Dubai</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 11 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-orange-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">东欧节点</h3>
+                                <p class="text-gray-400 text-sm">Russia · Moscow</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+
+                <!-- 节点 12 -->
+                <a href="#" target="_blank" class="bg-dark/60 bg-glass p-6 rounded-2xl border border-gray-800 node-item-hover block">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-lime-500/20 flex items-center justify-center">
+                                <i class="fa fa-server text-xl text-lime-500"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xl font-bold">非洲区域节点</h3>
+                                <p class="text-gray-400 text-sm">South Africa · Cape Town</p>
+                            </div>
+                        </div>
+                        <i class="fa fa-external-link text-gray-500"></i>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部 完全沿用你原网站底部样式 -->
+    <footer class="bg-dark pt-20 pb-10 border-t border-gray-800 relative z-10">
+        <div class="container mx-auto px-4">
+            <div class="grid md:grid-cols-4 gap-10 mb-10">
+                <!-- 品牌 -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-10 h-10 rounded-lg bg-gradient-to-r from-secondary to-accent flex items-center justify-center">
+                            <span class="text-white text-xl font-bold">R</span>
+                        </div>
+                        <h2 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 text-gradient">
+                            Raymond Chain
+                        </h2>
+                    </div>
+                    <p class="text-gray-400">
+                        构建未来区块链生态，创造数字价值新时代<br>
+                        Build future blockchain ecosystem, create new digital value era.
+                    </p>
+                </div>
+
+                <!-- 快速链接 -->
+                <div>
+                    <h3 class="text-lg font-bold mb-4">快速链接 / Quick Links</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-accent transition-colors">首页 / Home</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">关于我们 / About Us</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">RAYC生态 / RAYC Ecosystem</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">技术优势 / Tech Advantages</a></li>
+                    </ul>
+                </div>
+
+                <!-- 资源中心 -->
+                <div>
+                    <h3 class="text-lg font-bold mb-4">资源中心 / Resources</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" target="_blank" class="hover:text-accent transition-colors">白皮书 / Whitepaper</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">开发者文档 / Docs</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">新闻动态 / News</a></li>
+                        <li><a href="#" class="hover:text-accent transition-colors">常见问题 / FAQ</a></li>
+                    </ul>
+                </div>
+
+                <!-- 联系方式 -->
+                <div>
+                    <h3 class="text-lg font-bold mb-4">联系我们 / Contact Us</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li class="flex items-center gap-2">
+                            <i class="fa fa-envelope text-accent"></i>
+                            <span>contact@raymondchain.com</span>
+                        </li>
+                        <li class="flex items-center gap-2">
+                            <i class="fa fa-map-marker text-accent"></i>
+                            <span>全球区块链科技园区<br>Global Blockchain Tech Park</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <hr class="border-gray-800 mb-8">
+
+            <!-- 社交 & 版权 -->
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex gap-4">
+                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-500 transition-all" title="Twitter">
+                        <i class="fa fa-twitter text-white"></i>
+                    </a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-purple-500 transition-all" title="Telegram">
+                        <i class="fa fa-telegram text-white"></i>
+                    </a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-red-500 transition-all" title="Youtube">
+                        <i class="fa fa-youtube-play text-white"></i>
+                    </a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-blue-600 transition-all" title="Linkedin">
+                        <i class="fa fa-linkedin text-white"></i>
+                    </a>
+                    <a href="#" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-green-500 transition-all" title="WeChat">
+                        <i class="fa fa-weixin text-white"></i>
+                    </a>
+                </div>
+                <p class="text-gray-500 text-sm">© 2025 Raymond Chain. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- 粒子背景JS -->
+    <script>
+        particlesJS("particles-js", {
+            particles: {
+                number: { value: 80 },
+                color: { value: "#7E22CE" },
+                shape: { type: "circle" },
+                opacity: { value: 0.5 },
+                size: { value: 3 },
+                line_linked: {
+                    enable: true,
+                    distance: 150,
+                    color: "#7E22CE",
+                    opacity: 0.2,
+                    width: 1
+                },
+                move: {
+                    enable: true,
+                    speed: 1,
+                    direction: "none",
+                    random: true,
+                    straight: false,
+                    out_mode: "out",
+                    bounce: false
+                }
+            },
+            interactivity: {
+                detect_on: "canvas",
+                events: {
+                    onhover: { enable: true, mode: "grab" },
+                    onclick: { enable: true, mode: "push" }
+                }
+            },
+            retina_detect: true
         });
-    });
-
-    document.getElementById('doTransfer').onclick = async ()=>{
-        let to = document.getElementById('transferTo').value.trim();
-        let amount = parseFloat(document.getElementById('transferAmount').value);
-        if(!to||!amount) return alert('填写完整');
-        let decimals = await tokenContract.decimals();
-        let amountWei = ethers.utils.parseUnits(amount.toString(), decimals);
-        let tx = await tokenContract.transfer(to, amountWei);
-        await tx.wait(); alert('转账成功'); refreshAllBalances();
-    };
-    document.getElementById('setTimeBtn').onclick = async ()=>{ let s=document.getElementById('idoStart').value, e=document.getElementById('idoEnd').value; if(!s||!e) return; let tx=await idoContract.setTime(s,e); await tx.wait(); alert('成功'); };
-    document.getElementById('setRateBtn').onclick = async ()=>{ let r=document.getElementById('idoRate').value; if(!r) return; let tx=await idoContract.setRate(r); await tx.wait(); alert('成功'); };
-    document.getElementById('idoDepositBtn').onclick = async ()=>{ let a=parseFloat(document.getElementById('idoDepositAmount').value); if(!a) return; let decimals=await tokenContract.decimals(); let wei=ethers.utils.parseUnits(a.toString(), decimals); let approve=await tokenContract.approve(CONFIG.ido, wei); await approve.wait(); let tx=await idoContract.depositTokens(wei); await tx.wait(); alert('存入成功'); refreshAllBalances(); };
-    document.getElementById('idoWithdrawBtn').onclick = async ()=>{ if(confirm('提取剩余代币？')){ let tx=await idoContract.withdrawRemainingTokens(); await tx.wait(); alert('提取成功'); refreshAllBalances(); } };
-    document.getElementById('updateMinerStatusBtn').onclick = async ()=>{ let id=parseInt(document.getElementById('minerTypeId').value); let enabled=document.getElementById('minerEnabled').value==='true'; let mt=await miningContract.minerTypes(id); let tx=await miningContract.updateMinerType(id, mt[0], mt[1], mt[2], mt[3], mt[4], mt[5], enabled); await tx.wait(); alert('成功'); };
-    document.getElementById('setMaxClaimBtn').onclick = async ()=>{ let max=parseInt(document.getElementById('maxClaimTimes').value); if(!max) return; let tx=await miningContract.setMaxDailyClaimTimes(max); await tx.wait(); alert('成功'); };
-    document.getElementById('fundMiningBtn').onclick = async ()=>{ let a=parseFloat(document.getElementById('miningFundAmount').value); if(!a) return; let decimals=await tokenContract.decimals(); let wei=ethers.utils.parseUnits(a.toString(), decimals); let tx=await tokenContract.transfer(CONFIG.mining, wei); await tx.wait(); alert('转入成功'); refreshAllBalances(); };
-    document.getElementById('setLevelRateBtn').onclick = async ()=>{ let idx=parseInt(document.getElementById('levelIndex').value); let rate=parseInt(document.getElementById('newRate').value); if(!rate) return; let tx=await teamContract.setLevelRewardRate(idx, rate); await tx.wait(); alert('成功'); };
-    document.getElementById('fundTeamBtn').onclick = async ()=>{ let a=parseFloat(document.getElementById('teamFundAmount').value); if(!a) return; let decimals=await tokenContract.decimals(); let wei=ethers.utils.parseUnits(a.toString(), decimals); let approve=await tokenContract.approve(CONFIG.team, wei); await approve.wait(); let tx=await teamContract.depositRewardTokens(wei); await tx.wait(); alert('转入成功'); refreshAllBalances(); };
-    document.getElementById('withdrawTeamBtn').onclick = async ()=>{
-        let to = document.getElementById('withdrawTo').value.trim();
-        let amount = parseFloat(document.getElementById('withdrawAmount').value);
-        if(!to || !amount) return alert('请填写接收地址和提取数量');
-        if(!ethers.utils.isAddress(to)) return alert('无效的接收地址');
-        let decimals = await tokenContract.decimals();
-        let amountWei = ethers.utils.parseUnits(amount.toString(), decimals);
-        try {
-            let tx = await teamContract.withdrawRewardTokens(to, amountWei);
-            await tx.wait();
-            alert(`成功提取 ${amount} RYTC 到 ${to}`);
-            refreshAllBalances();
-        } catch(err) {
-            console.error(err);
-            alert('提取失败: ' + (err.message || '请检查合约余额或权限'));
-        }
-    };
-    document.getElementById('changeGuildOwnerBtn').onclick = async ()=>{ let gid=parseInt(document.getElementById('guildId').value); let newOwner=document.getElementById('newOwner').value.trim(); if(!gid||!newOwner) return alert('填写公会ID和会长地址'); let tx=await guildContract.changeGuildOwner(gid, newOwner); await tx.wait(); alert('会长更换成功'); };
-    document.getElementById('setGuildStakeBtn').onclick = async ()=>{ let gid=parseInt(document.getElementById('guildId').value); let stake=parseFloat(document.getElementById('guildStake').value); if(!gid||isNaN(stake)) return; let decimals=await tokenContract.decimals(); let stakeWei=ethers.utils.parseUnits(stake.toString(), decimals); let tx=await guildContract.setGuildStake(gid, stakeWei); await tx.wait(); alert('质押额设置成功'); };
-    document.getElementById('setGuildActiveBtn').onclick = async ()=>{ let gid=parseInt(document.getElementById('guildId').value); let active=document.getElementById('guildActive').value==='true'; let tx=await guildContract.setGuildActive(gid, active); await tx.wait(); alert('状态修改成功'); };
-    document.getElementById('setDividendRateBtn').onclick = async ()=>{ let rate=parseInt(document.getElementById('dividendRate').value); if(!rate) return; let tx=await guildContract.setDividendRate(rate); await tx.wait(); alert('分红比例修改成功'); };
-    document.getElementById('fundGuildBtn').onclick = async ()=>{ let a=parseFloat(document.getElementById('guildFundAmount').value); if(!a) return; let decimals=await tokenContract.decimals(); let wei=ethers.utils.parseUnits(a.toString(), decimals); let tx=await tokenContract.transfer(CONFIG.guild, wei); await tx.wait(); alert('转入公会合约成功'); refreshAllBalances(); };
-</script>
+    </script>
 </body>
 </html>
